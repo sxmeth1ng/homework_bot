@@ -40,16 +40,14 @@ HOMEWORK_VERDICTS = {
 def check_tokens():
     """Проверка подгрузки токенов."""
     SOURCE = ('PRACTICUM_TOKEN', 'TELEGRAM_TOKEN', 'TELEGRAM_CHAT_ID')
-    list_to_check = []
+    missing_tokens = []
     for token in SOURCE:
         if not globals()[token]:
-            list_to_check.append('token')
-    if len(list_to_check) == 0:
-        return True
-    else:
-        message = ', '.join(list_to_check)
+            missing_tokens.append('token')
+    if missing_tokens:
+        message = ', '.join(missing_tokens)
         logger.critical(f'Ошибка токенов - {message}')
-        return False
+        sys.exit()
 
 
 def send_message(bot, message):
@@ -82,6 +80,7 @@ def get_api_answer(current_timestamp):
     if response.status_code != HTTPStatus.OK:
         raise ServerError(
             f'Ошибка со стороны сервера,возвращённый ответ - {response.reason}'
+            f'Статус код - {response.status_code}.'
         )
     logger.info('Запрос к API прошёл успешно.')
     return response.json()
@@ -94,14 +93,14 @@ def check_response(response):
         raise TypeError(
             f'Ответ API является - {type(response)}, а не словарём.'
         )
-    hws = response.get('homeworks')
     if 'homeworks' not in response:
         raise KeyError('Ошибка в получении значения homeworks в словаре.')
-    if 'curent_date' not in response:
+    hws = response.get('homeworks')
+    if 'current_date' not in response:
         response['current_date'] = int(time.time())
     if not isinstance(hws, list):
         raise TypeError(
-            f'Ответ API является - {type(response)}, а не списком.'
+            f'Ответ API является - {type(hws)}, а не списком.'
         )
     logger.info('Проверка ответа сервера прошла успешно.')
     return hws
@@ -110,12 +109,12 @@ def check_response(response):
 def parse_status(homework):
     """Функция выводящая сообщения для бота."""
     logger.info('Начало проверки статуса работы.')
+    if 'homework_name' not in homework:
+        raise KeyError('Отсутствует или пустое поле: homework_name')
     homework_name = homework.get('homework_name')
-    if not homework_name:
-        raise KeyError(f'Отсутствует или пустое поле: {homework_name}')
-    homework_status = homework.get('status')
     if 'status' not in homework:
         raise KeyError('Ошибка в получение ключа status из словаря.')
+    homework_status = homework.get('status')
     if homework_status not in HOMEWORK_VERDICTS:
         raise KeyError(f'Неизвестный статус: {homework_status}')
     verdict = HOMEWORK_VERDICTS.get(homework_status)
@@ -125,9 +124,7 @@ def parse_status(homework):
 
 def main():
     """Основная логика работы бота."""
-    if not check_tokens():
-        logger.critical('Отсутствует переменная окружения')
-        sys.exit()
+    check_tokens()
     bot = TeleBot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
     last_message = None
@@ -138,6 +135,7 @@ def main():
             if homeworks:
                 message = parse_status(homeworks[0])
                 send_message(bot, message)
+                last_message = message
             else:
                 logger.debug('Новые статусы в ответе отсутствуют')
             current_timestamp = response.get(
