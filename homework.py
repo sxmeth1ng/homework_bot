@@ -47,7 +47,7 @@ def check_tokens():
     if missing_tokens:
         message = ', '.join(missing_tokens)
         logger.critical(f'Ошибка токенов - {message}')
-        sys.exit()
+        sys.exit(1)
 
 
 def send_message(bot, message):
@@ -75,7 +75,7 @@ def get_api_answer(current_timestamp):
         response = requests.get(**req_params)
     except requests.exceptions.RequestException:
         raise ConnectionError(
-            'Ошибка запроса к API - {ENDPOINT}, с параметрами - {params}'
+            f'Ошибка запроса к API - {ENDPOINT}, с параметрами - {params}'
         )
     if response.status_code != HTTPStatus.OK:
         raise ServerError(
@@ -96,8 +96,6 @@ def check_response(response):
     if 'homeworks' not in response:
         raise KeyError('Ошибка в получении значения homeworks в словаре.')
     hws = response.get('homeworks')
-    if 'current_date' not in response:
-        response['current_date'] = int(time.time())
     if not isinstance(hws, list):
         raise TypeError(
             f'Ответ API является - {type(hws)}, а не списком.'
@@ -110,7 +108,7 @@ def parse_status(homework):
     """Функция выводящая сообщения для бота."""
     logger.info('Начало проверки статуса работы.')
     if 'homework_name' not in homework:
-        raise KeyError('Отсутствует или пустое поле: homework_name')
+        raise KeyError('Отсутствует поле: homework_name')
     homework_name = homework.get('homework_name')
     if 'status' not in homework:
         raise KeyError('Ошибка в получение ключа status из словаря.')
